@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Netflix Películas</title>
+  <style>
+    :root {
+      --red: #e50914;
+      --dark: #141414;
+      --card: #1f1f1f;
+      --text: #e5e5e5;
+      --muted: #999;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--dark); color: var(--text); font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
+
+    header {
+      background: #000;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      border-bottom: 2px solid var(--red);
+    }
+    header h1 { color: var(--red); font-size: 1.8rem; letter-spacing: 2px; text-transform: uppercase; }
+
+    main { padding: 32px; max-width: 1200px; margin: 0 auto; }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 28px;
+      align-items: center;
+    }
+    .toolbar input, .toolbar select {
+      padding: 10px 14px;
+      border-radius: 6px;
+      border: 1px solid #444;
+      background: #222;
+      color: var(--text);
+      font-size: 0.9rem;
+      flex: 1;
+      min-width: 140px;
+    }
+    .btn {
+      padding: 10px 20px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: opacity .2s;
+    }
+    .btn:hover { opacity: .8; }
+    .btn-red   { background: var(--red); color: #fff; }
+    .btn-gray  { background: #444;       color: #fff; }
+    .btn-small { padding: 6px 12px; font-size: 0.8rem; }
+
+    /* ── Modal ── */
+    .overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.75);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlay.active { display: flex; }
+    .modal {
+      background: var(--card);
+      border-radius: 10px;
+      padding: 32px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 8px 32px #000;
+    }
+    .modal h2 { margin-bottom: 20px; color: var(--red); }
+    .modal label { display: block; margin-bottom: 4px; font-size: .85rem; color: var(--muted); }
+    .modal input, .modal select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 6px;
+      border: 1px solid #444;
+      background: #111;
+      color: var(--text);
+      margin-bottom: 14px;
+      font-size: .9rem;
+    }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 8px; }
+
+    /* ── Grid ── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 20px;
+    }
+    .card {
+      background: var(--card);
+      border-radius: 10px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      border: 1px solid #2a2a2a;
+      transition: border-color .2s, transform .2s;
+    }
+    .card:hover { border-color: var(--red); transform: translateY(-2px); }
+    .card-title { font-size: 1.05rem; font-weight: 700; }
+    .card-meta  { font-size: .82rem; color: var(--muted); }
+    .card-genre {
+      display: inline-block;
+      background: var(--red);
+      color: #fff;
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: .75rem;
+      font-weight: 600;
+      width: fit-content;
+    }
+    .card-actions { display: flex; gap: 8px; margin-top: 6px; }
+
+    /* ── Misc ── */
+    .status { text-align: center; padding: 60px 0; color: var(--muted); font-size: 1rem; }
+    .toast {
+      position: fixed;
+      bottom: 28px; right: 28px;
+      background: #333;
+      color: #fff;
+      padding: 14px 22px;
+      border-radius: 8px;
+      font-size: .9rem;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .3s;
+      z-index: 300;
+    }
+    .toast.show { opacity: 1; }
+    .toast.error { border-left: 4px solid var(--red); }
+    .toast.success { border-left: 4px solid #46d369; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🎬 Netflix API</h1>
+  <span id="api-status" style="font-size:.8rem;color:var(--muted)">Cargando...</span>
+</header>
+
+<main>
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <input id="filter-title"    type="text"    placeholder="🔍 Buscar por título..." />
+    <input id="filter-genero"   type="text"    placeholder="🎭 Género..." />
+    <input id="filter-director" type="text"    placeholder="🎬 Director..." />
+    <input id="filter-anio"     type="number"  placeholder="📅 Año..." min="1900" max="2100" />
+    <button class="btn btn-gray" onclick="loadMovies()">Buscar</button>
+    <button class="btn btn-red"  onclick="openCreate()">＋ Nueva</button>
+  </div>
+
+  <!-- Cards -->
+  <div id="movies-grid" class="grid">
+    <p class="status">Cargando películas...</p>
+  </div>
+</main>
+
+<!-- Modal Crear / Editar -->
+<div class="overlay" id="modal-overlay">
+  <div class="modal">
+    <h2 id="modal-title">Nueva Película</h2>
+    <input type="hidden" id="movie-id" />
+
+    <label>Título *</label>
+    <input id="f-titulo"    type="text" placeholder="Ej: Inception" />
+
+    <label>Género *</label>
+    <input id="f-genero"   type="text" placeholder="Ej: Ciencia Ficción" />
+
+    <label>Director *</label>
+    <input id="f-director" type="text" placeholder="Ej: Christopher Nolan" />
+
+    <label>Año *</label>
+    <input id="f-anio"     type="number" placeholder="Ej: 2010" min="1900" max="2100" />
+
+    <label>Sinopsis</label>
+    <input id="f-sinopsis" type="text" placeholder="Breve descripción..." />
+
+    <label>Duración (min)</label>
+    <input id="f-duracion" type="number" placeholder="Ej: 148" />
+
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-red"  onclick="saveMovie()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Configuración inyectada por CDK en tiempo de deploy -->
+<script src="/config.js"></script>
+<script>
+  // ── Config ──────────────────────────────────────────────────────────────────
+  const API_BASE = (window.NETFLIX_API_URL || '').replace(/\/$/, '') + '/api/v1/movies';
+
+  // ── Toast ────────────────────────────────────────────────────────────────────
+  function showToast(msg, type = 'success') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = `toast show ${type}`;
+    setTimeout(() => { t.className = 'toast'; }, 3000);
+  }
+
+  // ── API helpers ───────────────────────────────────────────────────────────────
+  async function apiFetch(path = '', options = {}) {
+    const url = path ? `${API_BASE}/${path}` : API_BASE;
+    const res = await fetch(url, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  // ── Load movies ───────────────────────────────────────────────────────────────
+  async function loadMovies() {
+    const grid = document.getElementById('movies-grid');
+    grid.innerHTML = '<p class="status">Cargando...</p>';
+
+    const params = new URLSearchParams();
+    const title    = document.getElementById('filter-title').value.trim();
+    const genero   = document.getElementById('filter-genero').value.trim();
+    const director = document.getElementById('filter-director').value.trim();
+    const anio     = document.getElementById('filter-anio').value.trim();
+
+    if (genero)   params.set('genero', genero);
+    if (director) params.set('director', director);
+    if (anio)     params.set('anio', anio);
+
+    try {
+      const qs  = params.toString() ? `?${params}` : '';
+      const res = await fetch(`${API_BASE}${qs}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      let movies = await res.json();
+
+      // Client-side title filter
+      if (title) {
+        movies = movies.filter(m =>
+          (m.titulo || '').toLowerCase().includes(title.toLowerCase())
+        );
+      }
+
+      document.getElementById('api-status').textContent = `${movies.length} película(s)`;
+      renderMovies(movies);
+    } catch (e) {
+      grid.innerHTML = `<p class="status">⚠️ Error al cargar: ${e.message}<br><small>Verifica que la URL del API esté configurada correctamente.</small></p>`;
+      document.getElementById('api-status').textContent = 'Error';
+    }
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────────
+  function renderMovies(movies) {
+    const grid = document.getElementById('movies-grid');
+    if (!movies.length) {
+      grid.innerHTML = '<p class="status">No se encontraron películas.</p>';
+      return;
+    }
+    grid.innerHTML = movies.map(m => `
+      <div class="card">
+        <span class="card-genre">${esc(m.genero || '?')}</span>
+        <div class="card-title">${esc(m.titulo || 'Sin título')}</div>
+        <div class="card-meta">🎬 ${esc(m.director || '—')} &nbsp;|&nbsp; 📅 ${esc(String(m.anio || '—'))}</div>
+        ${m.duracion ? `<div class="card-meta">⏱ ${esc(String(m.duracion))} min</div>` : ''}
+        ${m.sinopsis ? `<div class="card-meta" style="margin-top:4px">${esc(m.sinopsis)}</div>` : ''}
+        <div class="card-actions">
+          <button class="btn btn-gray btn-small" onclick='openEdit(${JSON.stringify(m)})'>✏️ Editar</button>
+          <button class="btn btn-red  btn-small" onclick="deleteMovie('${m.id}')">🗑 Borrar</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function esc(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Modal ─────────────────────────────────────────────────────────────────────
+  function openCreate() {
+    document.getElementById('modal-title').textContent = 'Nueva Película';
+    document.getElementById('movie-id').value = '';
+    ['titulo','genero','director','sinopsis'].forEach(f => document.getElementById(`f-${f}`).value = '');
+    ['anio','duracion'].forEach(f => document.getElementById(`f-${f}`).value = '');
+    document.getElementById('modal-overlay').classList.add('active');
+  }
+
+  function openEdit(movie) {
+    document.getElementById('modal-title').textContent = 'Editar Película';
+    document.getElementById('movie-id').value    = movie.id;
+    document.getElementById('f-titulo').value    = movie.titulo    || '';
+    document.getElementById('f-genero').value    = movie.genero    || '';
+    document.getElementById('f-director').value  = movie.director  || '';
+    document.getElementById('f-anio').value      = movie.anio      || '';
+    document.getElementById('f-sinopsis').value  = movie.sinopsis  || '';
+    document.getElementById('f-duracion').value  = movie.duracion  || '';
+    document.getElementById('modal-overlay').classList.add('active');
+  }
+
+  function closeModal() {
+    document.getElementById('modal-overlay').classList.remove('active');
+  }
+
+  // ── Save (create / update) ────────────────────────────────────────────────────
+  async function saveMovie() {
+    const id       = document.getElementById('movie-id').value;
+    const titulo   = document.getElementById('f-titulo').value.trim();
+    const genero   = document.getElementById('f-genero').value.trim();
+    const director = document.getElementById('f-director').value.trim();
+    const anio     = parseInt(document.getElementById('f-anio').value, 10);
+    const sinopsis = document.getElementById('f-sinopsis').value.trim();
+    const duracion = parseInt(document.getElementById('f-duracion').value, 10) || undefined;
+
+    if (!titulo || !genero || !director || !anio) {
+      showToast('Completa los campos obligatorios (*)', 'error');
+      return;
+    }
+
+    const body = { titulo, genero, director, anio, ...(sinopsis && { sinopsis }), ...(duracion && { duracion }) };
+
+    try {
+      if (id) {
+        await apiFetch(id, { method: 'PUT', body: JSON.stringify(body) });
+        showToast('Película actualizada ✔');
+      } else {
+        await apiFetch('', { method: 'POST', body: JSON.stringify(body) });
+        showToast('Película creada ✔');
+      }
+      closeModal();
+      loadMovies();
+    } catch (e) {
+      showToast(`Error: ${e.message}`, 'error');
+    }
+  }
+
+  // ── Delete ────────────────────────────────────────────────────────────────────
+  async function deleteMovie(id) {
+    if (!confirm('¿Eliminar esta película?')) return;
+    try {
+      await apiFetch(id, { method: 'DELETE' });
+      showToast('Película eliminada');
+      loadMovies();
+    } catch (e) {
+      showToast(`Error: ${e.message}`, 'error');
+    }
+  }
+
+  // ── Close overlay on outside click ───────────────────────────────────────────
+  document.getElementById('modal-overlay').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeModal();
+  });
+
+  // ── Init ──────────────────────────────────────────────────────────────────────
+  if (!window.NETFLIX_API_URL) {
+    document.getElementById('api-status').textContent = '⚠️ NETFLIX_API_URL no configurada';
+  }
+  loadMovies();
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+# Dependencies
+**/node_modules/
+
+# CDK
+**/cdk.out/
+
+# Build output
+**/*.js.map
+**/*.d.ts
+
+# Environment
+.env
+.env.*
+
+# OS files
+Thumbs.db
+.DS_Store
