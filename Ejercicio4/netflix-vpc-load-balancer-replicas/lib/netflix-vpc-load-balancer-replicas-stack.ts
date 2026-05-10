@@ -83,7 +83,7 @@ export class NetflixVpcLoadBalancerReplicasStack extends cdk.Stack {
 
     const auroraCluster = new rds.DatabaseInstance(this, 'AuroraCluster', {
       engine: rds.DatabaseInstanceEngine.postgres({
-        version: rds.PostgresEngineVersion.VER_15,
+        version: rds.PostgresEngineVersion.VER_16,
       }),
       instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO),
       vpc,
@@ -143,7 +143,7 @@ export class NetflixVpcLoadBalancerReplicasStack extends cdk.Stack {
     for (let i = 0; i < 3; i++) {
       const inst = new ec2.Instance(this, `OpenedxReplica${i + 1}`, {
         vpc,
-        instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MEDIUM),
+        instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.MICRO),
         machineImage: ubuntuAmi,
         securityGroup: ec2Sg,
         vpcSubnets: { subnets: [privateSubnets[i]] },
